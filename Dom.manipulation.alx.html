@@ -1,0 +1,400 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dynamic Quote Generator</title>
+    <!-- Load Tailwind CSS for modern, responsive styling -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        /* Custom styles to enhance aesthetics */
+        body {
+            font-family: 'Inter', sans-serif;
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding: 2rem 1rem;
+            background-color: #f8f9fa;
+        }
+        .container-card {
+            max-width: 900px;
+            width: 100%;
+            background: #ffffff;
+            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.1);
+            padding: 2rem;
+            border-radius: 1rem;
+        }
+        .quote-box {
+            min-height: 150px;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            text-align: center;
+            border: 2px dashed #6366f1;
+            padding: 2rem;
+            border-radius: 0.75rem;
+            margin-bottom: 1.5rem;
+            transition: all 0.3s ease;
+        }
+        .quote-text {
+            font-size: 1.5rem;
+            font-weight: 600;
+            color: #1f2937;
+            margin-bottom: 0.5rem;
+        }
+        .quote-category {
+            font-size: 1rem;
+            font-style: italic;
+            color: #6b7280;
+        }
+    </style>
+</head>
+<body>
+
+    <div class="container-card">
+        <h1 class="text-4xl font-bold text-center text-gray-800 mb-6">Dynamic Quote Generator</h1>
+
+        <!-- Session Storage Display -->
+        <div id="sessionDisplay" class="text-center mt-4 mb-6 p-3 text-sm bg-yellow-100 text-yellow-800 rounded-lg">
+            <!-- Session Info: Last viewed quote will go here -->
+            Loading session info...
+        </div>
+
+        <!-- Quote Display Area -->
+        <div id="quoteDisplay" class="quote-box">
+            <!-- Dynamic content will be inserted here -->
+            <p class="text-gray-500">Click the button below to get started!</p>
+        </div>
+
+        <!-- Action Buttons -->
+        <div class="flex flex-col sm:flex-row justify-center space-y-3 sm:space-y-0 sm:space-x-4 mb-8">
+            <button id="newQuote" 
+                    class="px-6 py-3 bg-indigo-600 text-white font-semibold rounded-lg shadow-md hover:bg-indigo-700 transition duration-300">
+                Show New Quote
+            </button>
+            <button id="addQuoteFormTrigger" 
+                    class="px-6 py-3 bg-gray-200 text-gray-700 font-semibold rounded-lg shadow-md hover:bg-gray-300 transition duration-300">
+                Add New Quote
+            </button>
+        </div>
+        
+        <!-- JSON I/O Controls -->
+        <div class="flex flex-wrap justify-center gap-4 mt-4 text-center">
+            <button id="exportQuotes" 
+                    class="px-4 py-2 bg-blue-600 text-white font-semibold rounded-lg shadow-md hover:bg-blue-700 transition duration-300 text-sm">
+                Export Quotes (JSON)
+            </button>
+            
+            <!-- Label acts as the visible button for the hidden file input -->
+            <label for="importFile" class="px-4 py-2 bg-purple-600 text-white font-semibold rounded-lg shadow-md hover:bg-purple-700 transition duration-300 cursor-pointer text-sm">
+                Import Quotes (JSON)
+            </label>
+            <input type="file" id="importFile" accept=".json" class="hidden" onchange="importFromJsonFile(event)" />
+        </div>
+
+
+        <!-- Dynamic Form Container -->
+        <div id="formContainer" class="mt-8 border-t pt-6">
+            <!-- The form will be generated here dynamically -->
+        </div>
+
+        <!-- Notification Message Box -->
+        <div id="notificationBox" class="text-center mt-4 text-sm font-medium"></div>
+
+    </div>
+
+    <script>
+        // 1. Initial Data Store (Used only if local storage is empty)
+        const defaultQuotes = [
+            { text: "The only way to do great work is to love what you do.", category: "Work" },
+            { text: "Strive not to be a success, but rather to be of value.", category: "Life" },
+            { text: "The mind is everything. What you think you become.", category: "Philosophy" },
+            { text: "Change the world by being yourself.", category: "Life" },
+            { text: "Software is like entropy: It is always increasing.", category: "Tech" },
+            { text: "The future belongs to those who believe in the beauty of their dreams.", category: "Inspiration" }
+        ];
+        let quotes = []; // This array will hold the current quotes, loaded from Local Storage
+
+        // Global DOM references
+        const quoteDisplay = document.getElementById('quoteDisplay');
+        const formContainer = document.getElementById('formContainer');
+        const notificationBox = document.getElementById('notificationBox');
+        const sessionDisplay = document.getElementById('sessionDisplay');
+
+
+        // --- Persistence (Local Storage) Functions ---
+
+        /**
+         * Saves the current quotes array to Local Storage.
+         */
+        function saveQuotes() {
+            // Using localStorage to persist data across sessions
+            localStorage.setItem('quotes', JSON.stringify(quotes));
+        }
+
+        /**
+         * Loads quotes from Local Storage or uses the default array if none are found.
+         */
+        function loadQuotes() {
+            const storedQuotes = localStorage.getItem('quotes');
+            if (storedQuotes) {
+                try {
+                    quotes = JSON.parse(storedQuotes);
+                    setNotification(`Loaded ${quotes.length} quotes from Local Storage.`, 'success');
+                } catch (e) {
+                    console.error("Error parsing stored quotes:", e);
+                    quotes = defaultQuotes;
+                    setNotification("Local storage corrupted. Using default quotes.", 'error');
+                }
+            } else {
+                quotes = defaultQuotes;
+            }
+        }
+
+
+        // --- Core Application Functions ---
+
+        /**
+         * Clears notifications and sets a new one with a specific style.
+         * @param {string} message The message to display.
+         * @param {string} type 'success' or 'error' to determine color.
+         */
+        function setNotification(message, type) {
+            notificationBox.textContent = message;
+            notificationBox.className = 'text-center mt-4 text-sm font-medium';
+            if (type === 'success') {
+                notificationBox.classList.add('text-green-600');
+            } else if (type === 'error') {
+                notificationBox.classList.add('text-red-600');
+            }
+            // Clear the notification after 3 seconds
+            setTimeout(() => {
+                notificationBox.textContent = '';
+            }, 3000); 
+        }
+
+        /**
+         * Loads and displays the last quote viewed from Session Storage.
+         */
+        function displaySessionInfo() {
+            const lastQuoteString = sessionStorage.getItem('lastQuote');
+
+            if (lastQuoteString) {
+                try {
+                    const lastQuote = JSON.parse(lastQuoteString);
+                    sessionDisplay.innerHTML = `Session Info (Last Viewed): <em>"${lastQuote.text}"</em> (${lastQuote.category})`;
+                } catch (e) {
+                    sessionDisplay.textContent = 'Session Info: Error loading last quote.';
+                    console.error("Error parsing session quote:", e);
+                }
+            } else {
+                sessionDisplay.textContent = 'Session Info: No quote viewed yet in this session.';
+            }
+        }
+
+        /**
+         * Implements Step 2: Displays a random quote from the array and updates Session Storage.
+         */
+        function showRandomQuote() {
+            if (quotes.length === 0) {
+                quoteDisplay.innerHTML = '<p class="text-gray-500">No quotes available. Add one!</p>';
+                return;
+            }
+
+            // Generate a random index
+            const randomIndex = Math.floor(Math.random() * quotes.length);
+            const quote = quotes[randomIndex];
+
+            // Session Storage: Save the currently viewed quote
+            sessionStorage.setItem('lastQuote', JSON.stringify(quote));
+
+            // Advanced DOM Manipulation: Create and append elements
+            quoteDisplay.innerHTML = ''; // Clear previous content
+
+            // Create quote text element
+            const quoteTextElement = document.createElement('p');
+            quoteTextElement.textContent = `"${quote.text}"`;
+            quoteTextElement.className = 'quote-text'; 
+
+            // Create category element
+            const quoteCategoryElement = document.createElement('p');
+            quoteCategoryElement.textContent = `— Category: ${quote.category}`;
+            quoteCategoryElement.className = 'quote-category'; 
+            
+            // Append the new elements to the display area
+            quoteDisplay.appendChild(quoteTextElement);
+            quoteDisplay.appendChild(quoteCategoryElement);
+            
+            setNotification("New quote displayed!", 'success');
+            displaySessionInfo(); // Update session display immediately
+        }
+
+        /**
+         * Implements Step 2: Dynamically creates and injects the "Add Quote" form elements into the DOM.
+         */
+        function createAddQuoteForm() {
+            if (document.getElementById('addQuoteForm')) {
+                setNotification("The form is already open below.", 'error');
+                return;
+            }
+
+            // Create the main form container DIV
+            const formDiv = document.createElement('div');
+            formDiv.id = 'addQuoteForm';
+            formDiv.className = 'p-6 bg-gray-50 border border-gray-200 rounded-xl space-y-4';
+
+            // Create Quote Text Input (Step 3)
+            const textInput = document.createElement('input');
+            textInput.id = 'newQuoteText';
+            textInput.type = 'text';
+            textInput.placeholder = 'Enter a new quote text';
+            textInput.className = 'w-full p-3 border border-gray-300 rounded-lg focus:ring-indigo-500 focus:border-indigo-500';
+
+            // Create Category Input (Step 3)
+            const categoryInput = document.createElement('input');
+            categoryInput.id = 'newQuoteCategory';
+            categoryInput.type = 'text';
+            categoryInput.placeholder = 'Enter quote category';
+            categoryInput.className = 'w-full p-3 border border-gray-300 rounded-lg focus:ring-indigo-500 focus:border-indigo-500';
+
+            // Create the Add Button (Step 3)
+            const addButton = document.createElement('button');
+            addButton.textContent = 'Submit Quote';
+            addButton.className = 'w-full px-4 py-2 bg-green-600 text-white font-semibold rounded-lg shadow-md hover:bg-green-700 transition duration-300';
+            // Attach the handler directly
+            addButton.onclick = addQuote;
+
+            // Append and Inject
+            formDiv.appendChild(textInput);
+            formDiv.appendChild(categoryInput);
+            formDiv.appendChild(addButton);
+            formContainer.appendChild(formDiv);
+        }
+
+        /**
+         * Implements Step 3: Reads input, adds the new quote, and updates the DOM and Local Storage.
+         */
+        function addQuote() {
+            const textInput = document.getElementById('newQuoteText');
+            const categoryInput = document.getElementById('newQuoteCategory');
+
+            const newText = textInput.value.trim();
+            const newCategory = categoryInput.value.trim();
+
+            if (!newText || !newCategory) {
+                setNotification("Please enter both the quote text and the category.", 'error');
+                return;
+            }
+
+            // 1. Update the data structure
+            const newQuote = { text: newText, category: newCategory };
+            quotes.push(newQuote);
+
+            // 2. Persist to Local Storage
+            saveQuotes();
+
+            // 3. Update the DOM
+            textInput.value = '';
+            categoryInput.value = '';
+            formContainer.innerHTML = ''; // Remove the form
+            
+            setNotification(`Quote added successfully! Total quotes: ${quotes.length}`, 'success');
+            showRandomQuote(); 
+        }
+
+        // --- JSON Import/Export Functions (Bonus Features) ---
+
+        /**
+         * Exports the current quotes array to a JSON file for download.
+         */
+        function exportToJsonFile() {
+            if (quotes.length === 0) {
+                setNotification("No quotes to export!", 'error');
+                return;
+            }
+            
+            const jsonString = JSON.stringify(quotes, null, 2);
+            const blob = new Blob([jsonString], { type: 'application/json' });
+            
+            // Create a temporary link element to trigger the download
+            const url = URL.createObjectURL(blob);
+            const link = document.createElement('a');
+            link.href = url;
+            link.download = 'dynamic_quotes_export.json';
+            
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+            
+            // Clean up
+            URL.revokeObjectURL(url);
+            setNotification(`Successfully exported ${quotes.length} quotes.`, 'success');
+        }
+
+        /**
+         * Imports quotes from a JSON file selected by the user.
+         * @param {Event} event The file input change event.
+         */
+        function importFromJsonFile(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+
+            const fileReader = new FileReader();
+            
+            fileReader.onload = function(event) {
+                try {
+                    const importedQuotes = JSON.parse(event.target.result);
+
+                    // Robust validation for expected structure
+                    if (!Array.isArray(importedQuotes) || importedQuotes.some(q => typeof q.text !== 'string' || typeof q.category !== 'string')) {
+                        setNotification('Invalid JSON structure. File must contain an array of {text, category} objects.', 'error');
+                        return;
+                    }
+
+                    // Add imported quotes to the current list
+                    quotes.push(...importedQuotes);
+                    
+                    // Save the updated list to local storage
+                    saveQuotes();
+
+                    // Update UI and display success
+                    showRandomQuote(); 
+                    setNotification(`Successfully imported ${importedQuotes.length} quotes! Total quotes: ${quotes.length}`, 'success');
+
+                } catch (e) {
+                    setNotification('Error reading or parsing JSON file.', 'error');
+                    console.error("Import error:", e);
+                } finally {
+                    // Reset the file input to allow re-importing the same file
+                    event.target.value = null; 
+                }
+            };
+            
+            fileReader.readAsText(file);
+        }
+
+
+        // --- Event Listeners and Initialization ---
+
+        // 1. New Quote button listener
+        document.getElementById('newQuote').addEventListener('click', showRandomQuote);
+
+        // 2. Add Quote Form Trigger listener
+        document.getElementById('addQuoteFormTrigger').addEventListener('click', createAddQuoteForm);
+        
+        // 3. Export button listener
+        document.getElementById('exportQuotes').addEventListener('click', exportToJsonFile);
+
+        // 4. Initial load: Load quotes from LS, display session info, and show first quote
+        window.onload = function() {
+            loadQuotes();
+            displaySessionInfo();
+            showRandomQuote();
+        };
+
+    </script>
+</body>
+</html>
+
